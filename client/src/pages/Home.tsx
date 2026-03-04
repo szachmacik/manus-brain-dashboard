@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { createClient } from "@supabase/supabase-js";
 import Sidebar from "@/components/Sidebar";
 import OverviewPanel from "@/components/OverviewPanel";
@@ -17,13 +18,15 @@ import ProjectsPanel from "@/components/ProjectsPanel";
 import PatternsPanel from "@/components/PatternsPanel";
 import HealthPanel from "@/components/HealthPanel";
 import CrossProjectPanel from "@/components/CrossProjectPanel";
+import NotificationsPanel from "@/components/NotificationsPanel";
+import ProceduresPanel from "@/components/ProceduresPanel";
 
 // Supabase client — read-only public access (ai-control-center)
 const SUPABASE_URL = "https://qhscjlfavyqkaplcwhxu.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFoc2NqbGZhdnlxa2FwbGN3aHh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzNzg1NDgsImV4cCI6MjA4Nzk1NDU0OH0.NWPX7OairlDx04bLZa0lGIccDmQ6BelJm-U5gHzcWt4";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-export type ActivePanel = "overview" | "experiences" | "runs" | "budget" | "notes" | "projects" | "patterns" | "health" | "cross";
+export type ActivePanel = "overview" | "experiences" | "runs" | "budget" | "notes" | "projects" | "patterns" | "health" | "cross" | "notifications" | "procedures";
 
 export interface DashboardData {
   experiences: any[];
@@ -51,6 +54,10 @@ export interface DashboardData {
 }
 
 export default function Home() {
+  // The userAuth hooks provides authentication state
+  // To implement login/logout functionality, simply call logout() or redirect to getLoginUrl()
+  let { user, loading, error, isAuthenticated, logout } = useAuth();
+
   const [activePanel, setActivePanel] = useState<ActivePanel>("overview");
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [data, setData] = useState<DashboardData>({
@@ -204,6 +211,8 @@ export default function Home() {
           {activePanel === "patterns"     && <PatternsPanel patterns={data.patterns} />}
           {activePanel === "health"       && <HealthPanel systemHealth={data.systemHealth} domainMetrics={data.domainMetrics} graphEdges={data.graphEdges} />}
           {activePanel === "cross"        && <CrossProjectPanel projects={data.projects} experiences={data.experiences} />}
+          {activePanel === "notifications" && <NotificationsPanel />}
+          {activePanel === "procedures"    && <ProceduresPanel />}
         </div>
       </main>
     </div>
