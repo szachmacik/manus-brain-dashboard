@@ -199,7 +199,7 @@ export default function Home() {
           {activePanel === "experiences"  && <ExperiencesPanel experiences={data.experiences} />}
           {activePanel === "runs"         && <LearningRunsPanel runs={data.allRuns} />}
           {activePanel === "budget"       && <BudgetPanel budget={data.budget} runs={data.allRuns} />}
-          {activePanel === "notes"        && <NotesPanel notes={data.notes} />}
+          {activePanel === "notes"        && <NotesPanel notes={data.notes} onNoteAdded={fetchData} />}
           {activePanel === "projects"     && <ProjectsPanel projects={data.projects} />}
           {activePanel === "patterns"     && <PatternsPanel patterns={data.patterns} />}
           {activePanel === "health"       && <HealthPanel systemHealth={data.systemHealth} domainMetrics={data.domainMetrics} graphEdges={data.graphEdges} />}

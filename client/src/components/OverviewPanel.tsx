@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { TrendingUp, Brain, Zap, Database, Clock, ChevronRight, CheckCircle, AlertCircle, FolderOpen, Activity, Layers } from "lucide-react";
+import { TrendingUp, Brain, Zap, Database, Clock, ChevronRight, CheckCircle, AlertCircle, FolderOpen, Activity, Layers, FileText, GitBranch, Network } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import type { DashboardData, ActivePanel } from "@/pages/Home";
 
@@ -47,6 +47,8 @@ export default function OverviewPanel({ data, onNavigate }: Props) {
   }));
 
   const topExperiences = experiences.slice(0, 4);
+  const recentNotes = data.notes.slice(0, 3);
+  const latestHealth = systemHealth[0];
 
   return (
     <div className="space-y-6 stagger-in">
@@ -240,30 +242,121 @@ export default function OverviewPanel({ data, onNavigate }: Props) {
         </div>
       </div>
 
-      {/* Top experiences */}
-      <div className="bg-card rounded-xl border border-border p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-foreground" style={{ fontFamily: "Syne, sans-serif" }}>
-            Najważniejsze wnioski
-          </h3>
-          <button
-            onClick={() => onNavigate("experiences")}
-            className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors"
-          >
-            Wszystkie <ChevronRight className="w-3 h-3" />
-          </button>
-        </div>
-        {topExperiences.length > 0 ? (
-          <div className="space-y-3">
-            {topExperiences.map((exp) => (
-              <ExperienceRow key={exp.id} exp={exp} />
-            ))}
+      {/* Bottom grid — experiences + notes + health */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        {/* Top experiences */}
+        <div className="lg:col-span-2 bg-card rounded-xl border border-border p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-foreground" style={{ fontFamily: "Syne, sans-serif" }}>
+              Najważniejsze wnioski
+            </h3>
+            <button
+              onClick={() => onNavigate("experiences")}
+              className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors"
+            >
+              Wszystkie <ChevronRight className="w-3 h-3" />
+            </button>
           </div>
-        ) : (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            Brak wniosków — system uczy się dziś w nocy
-          </p>
-        )}
+          {topExperiences.length > 0 ? (
+            <div className="space-y-3">
+              {topExperiences.map((exp) => (
+                <ExperienceRow key={exp.id} exp={exp} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Brak wniosków — system uczy się dziś w nocy
+            </p>
+          )}
+        </div>
+
+        {/* Recent notes + system activity */}
+        <div className="space-y-4">
+          {/* Recent notes */}
+          <div className="bg-card rounded-xl border border-border p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <FileText className="w-4 h-4 text-amber-400" />
+                Ostatnie notatki
+              </h3>
+              <button onClick={() => onNavigate("notes")} className="text-[10px] text-muted-foreground hover:text-primary transition-colors">
+                Wszystkie →
+              </button>
+            </div>
+            {recentNotes.length > 0 ? (
+              <div className="space-y-2">
+                {recentNotes.map((note: any) => (
+                  <div key={note.id} className="flex items-start gap-2 p-2 rounded-lg hover:bg-muted/30 transition-colors">
+                    <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${note.processed_at ? 'bg-primary' : 'bg-amber-400'}`} />
+                    <div className="min-w-0">
+                      <p className="text-xs text-foreground line-clamp-1 font-medium">{note.topic}</p>
+                      <p className="text-[10px] text-muted-foreground">{note.session_date}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <button
+                onClick={() => onNavigate("notes")}
+                className="w-full text-xs text-primary hover:underline text-center py-2"
+              >
+                + Dodaj pierwszą notatkę
+              </button>
+            )}
+          </div>
+
+          {/* System activity */}
+          <div className="bg-card rounded-xl border border-border p-4">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
+              <Activity className="w-4 h-4 text-primary" />
+              Aktywność systemu
+            </h3>
+            <div className="space-y-2.5">
+              <ActivityRow
+                icon={Brain}
+                label="Wnioski"
+                value={`${stats.activeExperiences} aktywnych`}
+                color="text-primary"
+              />
+              <ActivityRow
+                icon={Network}
+                label="Graf wiedzy"
+                value={`${latestHealth?.graph_edges || 0} krawędzi`}
+                color="text-blue-400"
+              />
+              <ActivityRow
+                icon={GitBranch}
+                label="Wzorce"
+                value={`${patterns.length} wykrytych`}
+                color="text-violet-400"
+              />
+              <ActivityRow
+                icon={FolderOpen}
+                label="Projekty"
+                value={`${stats.activeProjects} aktywnych`}
+                color="text-cyan-400"
+              />
+              <div className="pt-2 border-t border-border">
+                <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
+                  <span>Health Score</span>
+                  <span className={stats.overallHealth >= 70 ? 'text-primary' : stats.overallHealth >= 40 ? 'text-yellow-400' : 'text-red-400'}>
+                    {stats.overallHealth.toFixed(0)}/100
+                  </span>
+                </div>
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-1000"
+                    style={{
+                      width: `${stats.overallHealth}%`,
+                      background: stats.overallHealth >= 70 ? 'oklch(0.72 0.18 160)' : stats.overallHealth >= 40 ? 'oklch(0.78 0.17 75)' : 'oklch(0.65 0.22 15)'
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -316,6 +409,18 @@ function KpiCard({ icon: Icon, label, value, suffix, color, onClick, sub }: {
       <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
       <div className="text-[10px] text-muted-foreground/60 mt-1">{sub}</div>
     </button>
+  );
+}
+
+function ActivityRow({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: string; color: string }) {
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <Icon className={`w-3.5 h-3.5 ${color}`} />
+        <span className="text-xs text-muted-foreground">{label}</span>
+      </div>
+      <span className={`text-xs font-medium ${color}`}>{value}</span>
+    </div>
   );
 }
 
