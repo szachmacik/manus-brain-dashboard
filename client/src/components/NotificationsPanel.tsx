@@ -23,6 +23,7 @@ export default function NotificationsPanel() {
   const [labelInput, setLabelInput] = useState("Mój telefon");
   const [subscribeSuccess, setSubscribeSuccess] = useState(false);
   const [testResult, setTestResult] = useState<{ delivered: number; failed: number } | null>(null);
+  const [weeklyResult, setWeeklyResult] = useState<{ delivered: number; stats: any } | null>(null);
 
   const push = usePushNotifications();
   const { data: history, refetch: refetchHistory } = trpc.push.getHistory.useQuery({ limit: 50 });
@@ -52,6 +53,14 @@ export default function NotificationsPanel() {
       setTimeout(() => setTestResult(null), 5000);
     }
   };
+
+  const sendWeekly = trpc.push.sendWeeklyReport.useMutation({
+    onSuccess: (result) => {
+      setWeeklyResult({ delivered: result.delivered, stats: result.stats });
+      refetchHistory();
+      setTimeout(() => setWeeklyResult(null), 8000);
+    },
+  });
 
   const formatTime = (d: Date | string) => {
     const date = typeof d === "string" ? new Date(d) : d;
@@ -135,6 +144,18 @@ export default function NotificationsPanel() {
               </div>
             )}
 
+            {weeklyResult && (
+              <div className="px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs">
+                📊 Raport tygodniowy wysłany na {weeklyResult.delivered} urządzeń
+                {weeklyResult.stats && (
+                  <span className="ml-1 text-muted-foreground">
+                    · Health: {weeklyResult.stats.currentHealth?.toFixed(0)}/100
+                    · Koszt: ${weeklyResult.stats.totalCost?.toFixed(4)}
+                  </span>
+                )}
+              </div>
+            )}
+
             {!push.isSubscribed && push.permission !== "denied" && push.isSupported && (
               <div className="space-y-3">
                 <div>
@@ -158,21 +179,37 @@ export default function NotificationsPanel() {
             )}
 
             {push.isSubscribed && (
-              <div className="flex gap-2">
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleTest}
+                    disabled={push.isLoading}
+                    className="flex-1 py-2 rounded-lg border border-primary/30 text-primary text-sm hover:bg-primary/10 transition-colors"
+                  >
+                    🔔 Test
+                  </button>
+                  <button
+                    onClick={handleUnsubscribe}
+                    disabled={push.isLoading}
+                    className="flex-1 py-2 rounded-lg border border-border text-muted-foreground text-sm hover:border-red-500/30 hover:text-red-400 transition-colors"
+                  >
+                    Wyłącz
+                  </button>
+                </div>
                 <button
-                  onClick={handleTest}
-                  disabled={push.isLoading}
-                  className="flex-1 py-2 rounded-lg border border-primary/30 text-primary text-sm hover:bg-primary/10 transition-colors"
+                  onClick={() => sendWeekly.mutate()}
+                  disabled={sendWeekly.isPending}
+                  className="w-full py-2.5 rounded-lg border border-emerald-500/30 text-emerald-400 text-sm hover:bg-emerald-500/10 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  Wyślij test
+                  {sendWeekly.isPending ? (
+                    <><span className="animate-spin">⟳</span> Generowanie raportu...</>
+                  ) : (
+                    <>📊 Wyślij raport tygodniowy teraz</>
+                  )}
                 </button>
-                <button
-                  onClick={handleUnsubscribe}
-                  disabled={push.isLoading}
-                  className="flex-1 py-2 rounded-lg border border-border text-muted-foreground text-sm hover:border-red-500/30 hover:text-red-400 transition-colors"
-                >
-                  Wyłącz
-                </button>
+                <p className="text-xs text-muted-foreground text-center">
+                  Automatycznie co niedzielę o 08:00
+                </p>
               </div>
             )}
           </div>
