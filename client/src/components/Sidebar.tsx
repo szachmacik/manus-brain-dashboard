@@ -1,59 +1,93 @@
 /*
- * Sidebar — Dark Intelligence Dashboard
- * Fixed left navigation z ikonami i statusem ostatniego run
+ * Sidebar v2 — Dark Intelligence Dashboard
+ * Fixed left navigation z ikonami, statusem i stats badges
  */
 
-import { Brain, BookOpen, PlayCircle, Wallet, FileText, ChevronRight, Zap } from "lucide-react";
+import { Brain, BookOpen, PlayCircle, Wallet, FileText, ChevronRight, Zap, FolderOpen, TrendingUp, Activity } from "lucide-react";
 import type { ActivePanel } from "@/pages/Home";
 
 interface SidebarProps {
   activePanel: ActivePanel;
   onNavigate: (panel: ActivePanel) => void;
   latestRun: any | null;
+  stats?: {
+    totalExperiences: number;
+    activeExperiences: number;
+    totalRuns: number;
+    cacheEntries: number;
+    budgetUsedPct: number;
+    overallHealth: number;
+    pendingNotes: number;
+    activeProjects: number;
+  };
 }
 
-const navItems: { id: ActivePanel; label: string; icon: React.ElementType; desc: string }[] = [
+const navItems: { id: ActivePanel; label: string; icon: React.ElementType; desc: string; badgeKey?: keyof NonNullable<SidebarProps["stats"]> }[] = [
   { id: "overview",     label: "Przegląd",        icon: Brain,       desc: "Status systemu" },
-  { id: "experiences",  label: "Doświadczenia",    icon: BookOpen,    desc: "Baza wiedzy" },
-  { id: "runs",         label: "Uczenie się",      icon: PlayCircle,  desc: "Historia przebiegów" },
+  { id: "experiences",  label: "Doświadczenia",    icon: BookOpen,    desc: "Baza wiedzy",        badgeKey: "activeExperiences" },
+  { id: "runs",         label: "Uczenie się",      icon: PlayCircle,  desc: "Historia przebiegów", badgeKey: "totalRuns" },
   { id: "budget",       label: "Kredyty",          icon: Wallet,      desc: "Budżet i cache" },
-  { id: "notes",        label: "Notatki",          icon: FileText,    desc: "Z rozmów" },
+  { id: "notes",        label: "Notatki",          icon: FileText,    desc: "Z rozmów",            badgeKey: "pendingNotes" },
+  { id: "projects",     label: "Projekty",         icon: FolderOpen,  desc: "Kontekst projektów",  badgeKey: "activeProjects" },
+  { id: "patterns",     label: "Wzorce",           icon: TrendingUp,  desc: "Anty-wzorce i dobre praktyki" },
+  { id: "health",       label: "Stan systemu",     icon: Activity,    desc: "Trendy i metryki" },
 ];
 
-export default function Sidebar({ activePanel, onNavigate, latestRun }: SidebarProps) {
+export default function Sidebar({ activePanel, onNavigate, latestRun, stats }: SidebarProps) {
   const lastRunTime = latestRun?.completed_at
     ? formatRelativeTime(latestRun.completed_at)
     : "Brak";
 
   const lastRunStatus = latestRun?.status || "none";
 
+  const healthColor = !stats ? "text-muted-foreground" :
+    stats.overallHealth >= 70 ? "text-primary" :
+    stats.overallHealth >= 40 ? "text-yellow-400" : "text-red-400";
+
   return (
     <>
-      {/* Mobile overlay — hidden on lg */}
-      <div className="lg:hidden fixed inset-0 z-10 pointer-events-none" />
-
       {/* Sidebar */}
-      <aside className="hidden lg:flex fixed left-0 top-0 h-full w-60 flex-col bg-sidebar border-r border-sidebar-border z-30">
+      <aside className="hidden lg:flex fixed left-0 top-0 h-full w-64 flex-col bg-sidebar border-r border-sidebar-border z-30">
         {/* Logo */}
         <div className="px-5 py-5 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center">
-              <Zap className="w-4 h-4 text-primary" />
+            <div className="w-9 h-9 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center">
+              <Zap className="w-5 h-5 text-primary" />
             </div>
             <div>
               <h1 className="text-sm font-bold text-sidebar-foreground" style={{ fontFamily: "Syne, sans-serif" }}>
                 Manus Brain
               </h1>
-              <p className="text-[10px] text-muted-foreground">Baza Doświadczeń</p>
+              <p className="text-[10px] text-muted-foreground">Baza Doświadczeń v2</p>
             </div>
           </div>
+
+          {/* Health indicator */}
+          {stats && (
+            <div className="mt-3 flex items-center gap-2">
+              <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-1000"
+                  style={{
+                    width: `${stats.overallHealth}%`,
+                    background: stats.overallHealth >= 70 ? "var(--color-primary)" : stats.overallHealth >= 40 ? "#f59e0b" : "#ef4444"
+                  }}
+                />
+              </div>
+              <span className={`text-xs font-semibold ${healthColor}`}>{stats.overallHealth.toFixed(0)}</span>
+            </div>
+          )}
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activePanel === item.id;
+            const badge = item.badgeKey && stats ? stats[item.badgeKey] : undefined;
+            const showBadge = badge !== undefined && badge > 0;
+            const isPendingBadge = item.badgeKey === "pendingNotes";
+
             return (
               <button
                 key={item.id}
@@ -69,7 +103,18 @@ export default function Sidebar({ activePanel, onNavigate, latestRun }: SidebarP
                   <div className="text-sm font-medium truncate">{item.label}</div>
                   <div className="text-[10px] text-muted-foreground truncate">{item.desc}</div>
                 </div>
-                {isActive && <ChevronRight className="w-3 h-3 text-primary flex-shrink-0" />}
+                {showBadge && (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 ${
+                    isPendingBadge
+                      ? "bg-yellow-400/20 text-yellow-400"
+                      : isActive
+                      ? "bg-primary/30 text-primary"
+                      : "bg-muted text-muted-foreground"
+                  }`}>
+                    {badge}
+                  </span>
+                )}
+                {isActive && !showBadge && <ChevronRight className="w-3 h-3 text-primary flex-shrink-0" />}
               </button>
             );
           })}
@@ -77,15 +122,15 @@ export default function Sidebar({ activePanel, onNavigate, latestRun }: SidebarP
 
         {/* Last run status */}
         <div className="px-4 py-4 border-t border-sidebar-border">
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Ostatni run</div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Ostatni run nocny</div>
           <div className="flex items-center gap-2">
             <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
               lastRunStatus === "completed" ? "bg-primary pulse-emerald" :
-              lastRunStatus === "running"   ? "bg-amber-400 pulse-emerald" :
+              lastRunStatus === "running"   ? "bg-amber-400 animate-pulse" :
               lastRunStatus === "failed"    ? "bg-destructive" :
               "bg-muted-foreground"
             }`} />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="text-xs text-sidebar-foreground truncate">
                 {lastRunStatus === "completed" ? "Zakończony" :
                  lastRunStatus === "running"   ? "W trakcie..." :
@@ -95,10 +140,27 @@ export default function Sidebar({ activePanel, onNavigate, latestRun }: SidebarP
             </div>
           </div>
           {latestRun && (
-            <div className="mt-2 text-[10px] text-muted-foreground font-mono">
-              +{latestRun.experiences_added ?? 0} dodano · {latestRun.tokens_used ?? 0} tokenów
+            <div className="mt-2 grid grid-cols-3 gap-1 text-[10px] text-muted-foreground font-mono">
+              <div className="text-center">
+                <div className="text-primary font-semibold">+{latestRun.experiences_added ?? 0}</div>
+                <div>nowych</div>
+              </div>
+              <div className="text-center">
+                <div className="text-foreground font-semibold">{latestRun.notes_scanned ?? 0}</div>
+                <div>notatek</div>
+              </div>
+              <div className="text-center">
+                <div className="text-blue-400 font-semibold">{Math.round((latestRun.cache_hit_rate ?? 0) * 100)}%</div>
+                <div>cache</div>
+              </div>
             </div>
           )}
+
+          {/* Next run */}
+          <div className="mt-3 text-[10px] text-muted-foreground/60 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 inline-block" />
+            Następny run: 02:00
+          </div>
         </div>
       </aside>
     </>

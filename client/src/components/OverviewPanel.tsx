@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { TrendingUp, Brain, Zap, Database, Clock, ChevronRight, CheckCircle, AlertCircle } from "lucide-react";
+import { TrendingUp, Brain, Zap, Database, Clock, ChevronRight, CheckCircle, AlertCircle, FolderOpen, Activity, Layers } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import type { DashboardData, ActivePanel } from "@/pages/Home";
 
@@ -14,7 +14,7 @@ interface Props {
 }
 
 export default function OverviewPanel({ data, onNavigate }: Props) {
-  const { stats, latestRun, experiences, budget, allRuns } = data;
+  const { stats, latestRun, experiences, budget, allRuns, projects, patterns, systemHealth } = data;
 
   // Count-up animation
   const [displayStats, setDisplayStats] = useState({ exp: 0, runs: 0, cache: 0, budget: 0 });
@@ -98,6 +98,14 @@ export default function OverviewPanel({ data, onNavigate }: Props) {
           onClick={() => onNavigate("budget")}
           sub={budget ? `$${budget.spent_usd?.toFixed(4)} / $${budget.budget_usd}` : "N/A"}
         />
+      </div>
+
+      {/* Secondary KPI row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <MiniKpi icon={FolderOpen} label="Aktywne projekty" value={stats.activeProjects} color="text-cyan-400" onClick={() => onNavigate("projects")} />
+        <MiniKpi icon={Layers} label="Wzorce" value={patterns.length} color="text-violet-400" onClick={() => onNavigate("patterns")} />
+        <MiniKpi icon={Activity} label="Health score" value={Math.round(stats.overallHealth)} suffix="/100" color={stats.overallHealth >= 70 ? "text-primary" : stats.overallHealth >= 40 ? "text-yellow-400" : "text-red-400"} onClick={() => onNavigate("health")} />
+        <MiniKpi icon={Clock} label="Oczekujące notatki" value={stats.pendingNotes} color={stats.pendingNotes > 0 ? "text-yellow-400" : "text-muted-foreground"} onClick={() => onNavigate("notes")} />
       </div>
 
       {/* Main grid */}
@@ -262,6 +270,24 @@ export default function OverviewPanel({ data, onNavigate }: Props) {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+function MiniKpi({ icon: Icon, label, value, suffix = "", color, onClick }: {
+  icon: React.ElementType; label: string; value: number; suffix?: string;
+  color: string; onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="glass-card rounded-lg p-3 text-left hover:border-primary/30 transition-all duration-200 flex items-center gap-3"
+    >
+      <Icon className={`w-5 h-5 flex-shrink-0 ${color}`} />
+      <div className="min-w-0">
+        <div className={`text-lg font-display font-bold ${color}`}>{value}{suffix}</div>
+        <div className="text-[10px] text-muted-foreground truncate">{label}</div>
+      </div>
+    </button>
+  );
+}
 
 function KpiCard({ icon: Icon, label, value, suffix, color, onClick, sub }: {
   icon: React.ElementType; label: string; value: number; suffix: string;

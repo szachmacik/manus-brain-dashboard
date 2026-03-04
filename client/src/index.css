@@ -209,6 +209,22 @@
     to   { opacity: 1; transform: translateY(0); }
   }
 
+  /* Glass card — frosted glass effect */
+  .glass-card {
+    background: oklch(0.17 0.014 264 / 80%);
+    border: 1px solid oklch(1 0 0 / 8%);
+    backdrop-filter: blur(8px);
+  }
+
+  .glass-card:hover {
+    border-color: oklch(1 0 0 / 12%);
+  }
+
+  /* Font display utility */
+  .font-display {
+    font-family: 'Syne', system-ui, sans-serif;
+  }
+
   /* Scrollbar styling */
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
