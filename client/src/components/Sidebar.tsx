@@ -3,7 +3,7 @@
  * Fixed left navigation z ikonami, statusem i stats badges
  */
 
-import { Brain, BookOpen, PlayCircle, Wallet, FileText, ChevronRight, Zap, FolderOpen, TrendingUp, Activity, GitBranch, Bell, BookMarked, Bot } from "lucide-react";
+import { Brain, BookOpen, PlayCircle, Wallet, FileText, ChevronRight, Zap, FolderOpen, TrendingUp, Activity, GitBranch, Bell, BookMarked, Bot, Search, BarChart2, Clock, Download } from "lucide-react";
 import type { ActivePanel } from "@/pages/Home";
 
 interface SidebarProps {
@@ -35,6 +35,10 @@ const navItems: { id: ActivePanel; label: string; icon: React.ElementType; desc:
   { id: "notifications", label: "Powiadomienia",    icon: Bell,        desc: "Web Push alerty" },
   { id: "procedures",    label: "Centrum Procedur", icon: BookMarked,  desc: "Dekalog projektów" },
   { id: "ai",            label: "Multi-AI Router",  icon: Bot,         desc: "Claude · Kimi · DeepSeek" },
+  { id: "search",        label: "Wyszukiwarka",      icon: Search,      desc: "Szukaj w bazie wiedzy" },
+  { id: "analytics",    label: "Analityka",         icon: BarChart2,   desc: "Wykresy i trendy" },
+  { id: "timeline",     label: "Oś czasu",          icon: Clock,       desc: "Historia aktywności" },
+  { id: "export",       label: "Eksport danych",    icon: Download,    desc: "JSON · CSV · Markdown" },
 ];
 
 export default function Sidebar({ activePanel, onNavigate, latestRun, stats }: SidebarProps) {

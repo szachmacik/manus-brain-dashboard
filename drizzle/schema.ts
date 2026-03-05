@@ -43,6 +43,7 @@ export const notifications = mysqlTable("notifications", {
     "budget_alert",
     "project_update",
     "procedure_update",
+    "weekly_report",
     "test",
   ]).default("test").notNull(),
   priority: mysqlEnum("priority", ["low", "medium", "high", "critical"]).default("medium").notNull(),
@@ -61,7 +62,7 @@ export type InsertNotification = typeof notifications.$inferInsert;
 export const aiUsageLogs = mysqlTable("ai_usage_logs", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId"),
-  provider: varchar("provider", { length: 32 }).notNull(), // claude | kimi | deepseek | manus
+  provider: varchar("provider", { length: 32 }).notNull(),
   modelId: varchar("modelId", { length: 128 }).notNull(),
   taskType: varchar("taskType", { length: 64 }).default("general"),
   inputTokens: int("inputTokens").default(0),
@@ -75,3 +76,93 @@ export const aiUsageLogs = mysqlTable("ai_usage_logs", {
 
 export type AIUsageLog = typeof aiUsageLogs.$inferSelect;
 export type InsertAIUsageLog = typeof aiUsageLogs.$inferInsert;
+
+// Activity Log — chronologiczna oś czasu wszystkich aktywności Manusa
+export const activityLog = mysqlTable("activity_log", {
+  id: int("id").autoincrement().primaryKey(),
+  type: mysqlEnum("type", [
+    "note_added",
+    "experience_learned",
+    "pattern_detected",
+    "project_updated",
+    "learning_run",
+    "push_sent",
+    "ai_call",
+    "export_created",
+    "health_check",
+    "procedure_updated",
+  ]).notNull(),
+  title: varchar("title", { length: 256 }).notNull(),
+  description: text("description"),
+  entityType: varchar("entityType", { length: 64 }), // "note" | "experience" | "project" | etc.
+  entityId: varchar("entityId", { length: 128 }), // ID encji w Supabase lub MySQL
+  metadata: json("metadata"),
+  importance: int("importance").default(5), // 1-10
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ActivityLog = typeof activityLog.$inferSelect;
+export type InsertActivityLog = typeof activityLog.$inferInsert;
+
+// Tags — tagi dla notatek, doświadczeń i projektów
+export const tags = mysqlTable("tags", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 64 }).notNull().unique(),
+  color: varchar("color", { length: 16 }).default("#10b981"), // emerald
+  category: varchar("category", { length: 64 }).default("general"),
+  usageCount: int("usageCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Tag = typeof tags.$inferSelect;
+export type InsertTag = typeof tags.$inferInsert;
+
+// Search Cache — cache wyników wyszukiwania (optymalizacja kredytów)
+export const searchCache = mysqlTable("search_cache", {
+  id: int("id").autoincrement().primaryKey(),
+  queryHash: varchar("queryHash", { length: 64 }).notNull().unique(), // SHA256 zapytania
+  query: text("query").notNull(),
+  results: json("results").notNull(),
+  resultCount: int("resultCount").default(0).notNull(),
+  hitCount: int("hitCount").default(0).notNull(), // ile razy użyto cache
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  expiresAt: timestamp("expiresAt").notNull(), // TTL
+});
+
+export type SearchCache = typeof searchCache.$inferSelect;
+export type InsertSearchCache = typeof searchCache.$inferInsert;
+
+// Data Exports — historia eksportów danych
+export const dataExports = mysqlTable("data_exports", {
+  id: int("id").autoincrement().primaryKey(),
+  format: mysqlEnum("format", ["json", "csv", "markdown"]).notNull(),
+  scope: mysqlEnum("scope", [
+    "all",
+    "experiences",
+    "notes",
+    "projects",
+    "patterns",
+    "analytics",
+  ]).notNull(),
+  fileName: varchar("fileName", { length: 256 }).notNull(),
+  recordCount: int("recordCount").default(0).notNull(),
+  fileSizeBytes: int("fileSizeBytes").default(0).notNull(),
+  downloadUrl: text("downloadUrl"), // URL do S3 lub base64
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DataExport = typeof dataExports.$inferSelect;
+export type InsertDataExport = typeof dataExports.$inferInsert;
+
+// System Config — konfiguracja systemu (klucze, ustawienia, flagi)
+export const systemConfig = mysqlTable("system_config", {
+  id: int("id").autoincrement().primaryKey(),
+  key: varchar("key", { length: 128 }).notNull().unique(),
+  value: text("value"),
+  description: text("description"),
+  isSecret: boolean("isSecret").default(false).notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SystemConfig = typeof systemConfig.$inferSelect;
+export type InsertSystemConfig = typeof systemConfig.$inferInsert;
