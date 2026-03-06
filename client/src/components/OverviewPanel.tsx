@@ -4,9 +4,10 @@
  */
 
 import { useState, useEffect } from "react";
-import { TrendingUp, Brain, Zap, Database, Clock, ChevronRight, CheckCircle, AlertCircle, FolderOpen, Activity, Layers, FileText, GitBranch, Network } from "lucide-react";
+import { TrendingUp, Brain, Zap, Database, Clock, ChevronRight, CheckCircle, AlertCircle, FolderOpen, Activity, Layers, FileText, GitBranch, Network, Sparkles } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import type { DashboardData, ActivePanel } from "@/pages/Home";
+import { trpc } from "@/lib/trpc";
 
 interface Props {
   data: DashboardData;
@@ -49,6 +50,9 @@ export default function OverviewPanel({ data, onNavigate }: Props) {
   const topExperiences = experiences.slice(0, 4);
   const recentNotes = data.notes.slice(0, 3);
   const latestHealth = systemHealth[0];
+  
+  // Vector DB stats
+  const vectorStats = trpc.vector.stats.useQuery();
 
   return (
     <div className="space-y-6 stagger-in">
@@ -109,6 +113,16 @@ export default function OverviewPanel({ data, onNavigate }: Props) {
         <MiniKpi icon={Activity} label="Health score" value={Math.round(stats.overallHealth)} suffix="/100" color={stats.overallHealth >= 70 ? "text-primary" : stats.overallHealth >= 40 ? "text-yellow-400" : "text-red-400"} onClick={() => onNavigate("health")} />
         <MiniKpi icon={Clock} label="Oczekujące notatki" value={stats.pendingNotes} color={stats.pendingNotes > 0 ? "text-yellow-400" : "text-muted-foreground"} onClick={() => onNavigate("notes")} />
       </div>
+
+      {/* Vector DB row */}
+      {vectorStats.data && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <MiniKpi icon={Sparkles} label="Embeddings" value={vectorStats.data.embeddings} color="text-emerald-400" onClick={() => onNavigate("vector")} />
+          <MiniKpi icon={GitBranch} label="Semantic links" value={vectorStats.data.links} color="text-purple-400" onClick={() => onNavigate("vector")} />
+          <MiniKpi icon={Layers} label="Klastry" value={vectorStats.data.clusters} color="text-amber-400" onClick={() => onNavigate("vector")} />
+          <MiniKpi icon={Network} label="Pokrycie wekt." value={vectorStats.data.coverage} suffix="%" color={vectorStats.data.coverage >= 80 ? "text-emerald-400" : "text-yellow-400"} onClick={() => onNavigate("vector")} />
+        </div>
+      )}
 
       {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -366,7 +380,7 @@ export default function OverviewPanel({ data, onNavigate }: Props) {
 
 function MiniKpi({ icon: Icon, label, value, suffix = "", color, onClick }: {
   icon: React.ElementType; label: string; value: number; suffix?: string;
-  color: string; onClick: () => void;
+  color: string; onClick?: () => void;
 }) {
   return (
     <button

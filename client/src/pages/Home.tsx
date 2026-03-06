@@ -25,13 +25,14 @@ import SearchPanel from "@/components/SearchPanel";
 import AnalyticsPanel from "@/components/AnalyticsPanel";
 import TimelinePanel from "@/components/TimelinePanel";
 import ExportPanel from "@/components/ExportPanel";
+import VectorPanel from "@/components/VectorPanel";
 
 // Supabase client — read-only public access (ai-control-center)
 const SUPABASE_URL = "https://qhscjlfavyqkaplcwhxu.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFoc2NqbGZhdnlxa2FwbGN3aHh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzNzg1NDgsImV4cCI6MjA4Nzk1NDU0OH0.NWPX7OairlDx04bLZa0lGIccDmQ6BelJm-U5gHzcWt4";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-export type ActivePanel = "overview" | "experiences" | "runs" | "budget" | "notes" | "projects" | "patterns" | "health" | "cross" | "notifications" | "procedures" | "ai" | "search" | "analytics" | "timeline" | "export";
+export type ActivePanel = "overview" | "experiences" | "runs" | "budget" | "notes" | "projects" | "patterns" | "health" | "cross" | "notifications" | "procedures" | "ai" | "search" | "analytics" | "timeline" | "export" | "vector";
 
 export interface DashboardData {
   experiences: any[];
@@ -223,6 +224,7 @@ export default function Home() {
           {activePanel === "analytics"     && <AnalyticsPanel />}
           {activePanel === "timeline"      && <TimelinePanel />}
           {activePanel === "export"        && <ExportPanel />}
+          {activePanel === "vector"       && <VectorPanel />}
         </div>
       </main>
     </div>

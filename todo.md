@@ -74,3 +74,21 @@
 - [x] Frontend: AIModelsPanel z testowaniem modeli
 - [x] Tabela ai_usage_logs w MySQL
 - [ ] Dodać klucze API: ANTHROPIC_API_KEY, MOONSHOT_API_KEY, DEEPSEEK_API_KEY
+
+## Baza Wektorowa (pgvector + TF-IDF)
+- [x] Aktywacja pgvector w Supabase (rozszerzenie vector 0.8.0)
+- [x] Tabele: manus_embeddings, manus_vector_clusters, manus_semantic_links
+- [x] Pipeline JS: scripts/generate_embeddings.mjs — TF-IDF 1536-dim
+- [x] Pipeline Python: scripts/vector_pipeline.py — full/delta/cluster/report
+- [x] Indeksowanie 23 doświadczeń (100% pokrycie)
+- [x] 24 semantic links (próg: 0.15)
+- [x] 7 klastrów semantycznych (k-means)
+- [x] 5 anomalii wykrytych (izolowane doświadczenia)
+- [x] Router tRPC: vector.stats, semanticSearch, findSimilar, clusters, knowledgeGraph, indexNew, coverage
+- [x] VectorPanel: Knowledge Graph (force simulation), Semantic Search, Klastry, Pokrycie
+- [x] Integracja z ExperiencesPanel: "Podobne doświadczenia" w szczegółach
+- [x] Integracja z OverviewPanel: Vector DB row (embeddings, links, clusters, coverage)
+- [x] Sidebar: nowy wpis "Baza Wektorowa" z ikoną Network
+- [x] 14 testów vitest dla TF-IDF i cosine similarity
+- [x] Raport wektorowy wyeksportowany do Google Drive
+- [x] Checkpoint v8 — Baza Wektorowa

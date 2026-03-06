@@ -4,7 +4,8 @@
  */
 
 import { useState, useMemo } from "react";
-import { Search, Filter, TrendingUp, ThumbsUp, ThumbsDown, Tag } from "lucide-react";
+import { Search, Filter, TrendingUp, ThumbsUp, ThumbsDown, Tag, Sparkles } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 
 interface Props {
   experiences: any[];
@@ -108,7 +109,7 @@ export default function ExperiencesPanel({ experiences }: Props) {
         {/* Detail */}
         <div className="lg:col-span-3">
           {selected ? (
-            <ExperienceDetail exp={selected} />
+            <ExperienceDetail exp={selected} onSelectExp={(e) => setSelected(e)} />
           ) : (
             <div className="h-full flex items-center justify-center bg-card rounded-xl border border-border p-8 text-center">
               <div>
@@ -151,9 +152,17 @@ function ExperienceCard({ exp, isSelected, onClick }: { exp: any; isSelected: bo
   );
 }
 
-function ExperienceDetail({ exp }: { exp: any }) {
+function ExperienceDetail({ exp, onSelectExp }: { exp: any; onSelectExp?: (e: any) => void }) {
   const confidence = Math.round((exp.confidence || 0) * 100);
   const confColor = confidence > 70 ? "oklch(0.72 0.18 160)" : confidence > 40 ? "oklch(0.78 0.17 75)" : "oklch(0.65 0.22 15)";
+  
+  // Pobierz podobne doświadczenia z bazy wektorowej
+  const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(exp.id);
+  const similarQuery = trpc.vector.findSimilar.useQuery(
+    { experienceId: exp.id, limit: 3 },
+    { enabled: isValidUUID }
+  );
+  const similar = similarQuery.data ?? [];
 
   return (
     <div className="bg-card rounded-xl border border-border p-5 space-y-4 h-full">
@@ -212,6 +221,31 @@ function ExperienceDetail({ exp }: { exp: any }) {
             <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
               {tag}
             </span>
+          ))}
+        </div>
+      )}
+
+      {/* Similar experiences */}
+      {isValidUUID && similar.length > 0 && (
+        <div className="space-y-2 pt-2 border-t border-border">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-3.5 h-3.5 text-primary" />
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Podobne doświadczenia</span>
+          </div>
+          {similar.map((s: any) => (
+            <button
+              key={s.id}
+              onClick={() => onSelectExp?.(s)}
+              className="w-full text-left p-2.5 rounded-lg bg-muted/20 border border-border hover:border-primary/30 transition-colors"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-foreground line-clamp-1 flex-1">{s.title}</span>
+                <span className="text-xs font-mono text-primary shrink-0">{Math.round(s.similarity * 100)}%</span>
+              </div>
+              <div className="flex gap-1 mt-1">
+                <span className="text-[10px] text-muted-foreground">{s.domain}</span>
+              </div>
+            </button>
           ))}
         </div>
       )}
