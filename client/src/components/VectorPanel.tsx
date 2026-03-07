@@ -5,7 +5,7 @@
  */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
-import { Search, Brain, Network, Layers, RefreshCw, Zap, Target, GitBranch } from "lucide-react";
+import { Search, Brain, Network, Layers, RefreshCw, Zap, Target, GitBranch, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -279,12 +279,17 @@ function ForceGraph({ nodes, edges }: { nodes: GraphNode[]; edges: GraphEdge[] }
 export default function VectorPanel() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSearch, setActiveSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<"graph" | "search" | "clusters" | "coverage">("graph");
+  const [activeTab, setActiveTab] = useState<"graph" | "search" | "clusters" | "coverage" | "evolution">("graph");
+  const [evolutionDays, setEvolutionDays] = useState(7);
 
   const statsQuery = trpc.vector.stats.useQuery();
   const graphQuery = trpc.vector.knowledgeGraph.useQuery();
   const clustersQuery = trpc.vector.clusters.useQuery();
   const coverageQuery = trpc.vector.coverage.useQuery();
+  const evolutionQuery = trpc.vector.clusterEvolution.useQuery(
+    { days: evolutionDays },
+    { enabled: activeTab === "evolution", staleTime: 60000 }
+  );
   const searchQuery2 = trpc.vector.semanticSearch.useQuery(
     { query: activeSearch, limit: 8, threshold: 0.05 },
     { enabled: activeSearch.length > 2 }
@@ -314,6 +319,7 @@ export default function VectorPanel() {
     { id: "search" as const, label: "Semantic Search", icon: Search },
     { id: "clusters" as const, label: "Klastry", icon: Layers },
     { id: "coverage" as const, label: "Pokrycie", icon: Target },
+    { id: "evolution" as const, label: "Ewolucja", icon: TrendingUp },
   ];
 
   return (
@@ -558,6 +564,103 @@ export default function VectorPanel() {
                 <Progress value={d.percentage} className="h-1 bg-[#1a1a1a]" />
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "evolution" && (
+        <div className="space-y-4">
+          {/* Controls */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-[#6b7280]">Zakres:</span>
+            {[7, 14, 30].map((d) => (
+              <button
+                key={d}
+                onClick={() => setEvolutionDays(d)}
+                className={`px-3 py-1 rounded-full text-xs border transition-all ${
+                  evolutionDays === d
+                    ? "bg-[#10b981]/20 border-[#10b981]/40 text-[#10b981]"
+                    : "border-[#1a1a1a] text-[#6b7280] hover:border-[#333]"
+                }`}
+              >
+                {d} dni
+              </button>
+            ))}
+            {evolutionQuery.isLoading && <RefreshCw className="w-3 h-3 animate-spin text-[#6b7280]" />}
+          </div>
+
+          {/* Timeline bar chart */}
+          {evolutionQuery.data?.timeline && evolutionQuery.data.timeline.length > 0 && (
+            <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-xl p-4">
+              <h4 className="text-xs font-semibold text-[#6b7280] uppercase tracking-wider mb-3">Suma członków klastrów w czasie</h4>
+              <div className="flex items-end gap-1 h-24">
+                {evolutionQuery.data.timeline.map((t: any, i: number) => {
+                  const timeline = evolutionQuery.data?.timeline ?? [];
+                  const maxVal = Math.max(...timeline.map((x: any) => x.totalMembers), 1);
+                  const height = Math.max(4, (t.totalMembers / maxVal) * 88);
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
+                      <div
+                        className="w-full rounded-t bg-[#10b981]/60 hover:bg-[#10b981] transition-colors cursor-default"
+                        style={{ height: `${height}px` }}
+                      />
+                      <span className="text-[9px] text-[#4b5563] rotate-45 origin-left">
+                        {t.date?.slice(5)}
+                      </span>
+                      {/* Tooltip */}
+                      <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-[#111] border border-[#333] rounded px-2 py-1 text-xs text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                        {t.date}: {t.totalMembers} czł.
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Cluster trends */}
+          <div className="space-y-2">
+            <h4 className="text-xs font-semibold text-[#6b7280] uppercase tracking-wider">Trend per klaster ({evolutionDays} dni)</h4>
+            {evolutionQuery.isLoading ? (
+              <div className="text-center py-8 text-[#6b7280]"><RefreshCw className="w-5 h-5 animate-spin mx-auto" /></div>
+            ) : (evolutionQuery.data?.trend ?? []).length === 0 ? (
+              <div className="text-center py-6 text-[#6b7280] text-sm">Brak danych historycznych.</div>
+            ) : (
+              (evolutionQuery.data?.trend ?? []).map((t: any) => (
+                <div key={t.name} className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-xl p-3 flex items-center gap-3">
+                  <div
+                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: getDomainColor(t.name) }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white capitalize truncate">{t.name}</p>
+                    <p className="text-xs text-[#6b7280]">
+                      {t.firstCount} → {t.lastCount} członków
+                      {t.totalNewMembers > 0 && <span className="text-[#10b981] ml-1">+{t.totalNewMembers} nowych</span>}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {t.growth > 0 ? (
+                      <TrendingUp className="w-4 h-4 text-[#10b981]" />
+                    ) : t.growth < 0 ? (
+                      <TrendingDown className="w-4 h-4 text-red-400" />
+                    ) : (
+                      <Minus className="w-4 h-4 text-[#6b7280]" />
+                    )}
+                    <span
+                      className="text-sm font-mono font-bold"
+                      style={{ color: t.growth > 0 ? "#10b981" : t.growth < 0 ? "#f87171" : "#6b7280" }}
+                    >
+                      {t.growth > 0 ? "+" : ""}{t.growth}
+                    </span>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-xs text-[#6b7280]">avg sim</div>
+                    <div className="text-xs font-mono text-[#9ca3af]">{t.avgSimilarity}</div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}

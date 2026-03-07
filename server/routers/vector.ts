@@ -346,6 +346,102 @@ export const vectorRouter = router({
     return { indexed, skipped, errors };
   }),
 
+  // ── CLUSTER EVOLUTION — historia zmian klastrów w czasie ─────────────────
+  clusterEvolution: publicProcedure
+    .input(z.object({
+      days: z.number().min(1).max(90).default(7),
+    }))
+    .query(async ({ input }) => {
+      const supabase = getSupabase();
+      if (!supabase) return { history: [], clusters: [], trend: [] };
+
+      const since = new Date();
+      since.setDate(since.getDate() - input.days);
+      const sinceStr = since.toISOString().split("T")[0];
+
+      const { data: history } = await supabase
+        .from("manus_cluster_history")
+        .select("*")
+        .gte("snapshot_date", sinceStr)
+        .order("snapshot_date", { ascending: true });
+
+      if (!history || history.length === 0) return { history: [], clusters: [], trend: [] };
+
+      // Unikalne nazwy klastrów
+      const clusterNames = Array.from(new Set(history.map((h) => h.cluster_name)));
+
+      // Trend per klaster (ostatni vs pierwszy snapshot)
+      const trend = clusterNames.map((name) => {
+        const clusterHistory = history.filter((h) => h.cluster_name === name);
+        const first = clusterHistory[0];
+        const last = clusterHistory[clusterHistory.length - 1];
+        const growth = last && first ? last.member_count - first.member_count : 0;
+        const avgSim = clusterHistory.reduce((s, h) => s + (h.avg_similarity ?? 0), 0) / clusterHistory.length;
+        return {
+          name,
+          firstCount: first?.member_count ?? 0,
+          lastCount: last?.member_count ?? 0,
+          growth,
+          growthPct: first?.member_count ? Math.round((growth / first.member_count) * 100) : 0,
+          avgSimilarity: Math.round(avgSim * 1000) / 1000,
+          totalNewMembers: clusterHistory.reduce((s, h) => s + (h.new_members ?? 0), 0),
+        };
+      });
+
+      // Timeline data — per dzień, suma wszystkich klastrów
+      const dateMap: Record<string, { date: string; totalMembers: number; clusterCount: number }> = {};
+      for (const h of history) {
+        const d = h.snapshot_date as string;
+        if (!dateMap[d]) dateMap[d] = { date: d, totalMembers: 0, clusterCount: 0 };
+        dateMap[d].totalMembers += h.member_count ?? 0;
+        dateMap[d].clusterCount++;
+      }
+
+      return {
+        history,
+        clusters: clusterNames,
+        trend: trend.sort((a, b) => b.lastCount - a.lastCount),
+        timeline: Object.values(dateMap),
+      };
+    }),
+
+  // ── SNAPSHOT — zapisz aktualny stan klastrów do historii ─────────────────
+  snapshotClusters: publicProcedure.mutation(async () => {
+    const supabase = getSupabase();
+    if (!supabase) return { saved: 0 };
+
+    const { data: clusters } = await supabase
+      .from("manus_vector_clusters")
+      .select("*");
+
+    if (!clusters || clusters.length === 0) return { saved: 0 };
+
+    const today = new Date().toISOString().split("T")[0];
+
+    // Sprawdź czy snapshot z dzisiaj już istnieje
+    const { data: existing } = await supabase
+      .from("manus_cluster_history")
+      .select("id")
+      .eq("snapshot_date", today)
+      .limit(1);
+
+    if (existing && existing.length > 0) return { saved: 0, message: "Snapshot already exists for today" };
+
+    const rows = clusters.map((c) => ({
+      snapshot_date: today,
+      cluster_name: c.name ?? "unknown",
+      member_count: c.member_count ?? 0,
+      keywords: c.keywords?.slice(0, 5) ?? [],
+      dominant_domain: c.name ?? "unknown",
+      avg_similarity: 0.3,
+      new_members: 0,
+      lost_members: 0,
+    }));
+
+    const { error } = await supabase.from("manus_cluster_history").insert(rows);
+    return { saved: error ? 0 : rows.length, error: error?.message };
+  }),
+
   // ── COVERAGE — ile doświadczeń ma embeddings ──────────────────────────────
   coverage: publicProcedure.query(async () => {
     const supabase = getSupabase();

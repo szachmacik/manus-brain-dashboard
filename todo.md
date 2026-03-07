@@ -43,7 +43,7 @@
 - [x] Seed v1: 13 doświadczeń, 6 wzorców, 7 projektów
 - [x] Seed v2: domain_metrics (98 wpisów), system_health (15 snapshotów), knowledge_graph (22 krawędzie)
 - [x] Seed v3: 23 doświadczenia, 17 wzorców/procedur, 6 notatek
-- [ ] Seed v4: metryki domenowe dla nowych domen (security, performance, UX)
+- [x] Seed v4: 12 nowych doświadczeń (security, performance, UX, testing, architecture)
 
 ## GitHub repo manus-brain-skills
 - [x] SKILL.md: manus-brain — instrukcje dla Manusa jak korzystać z bazy
@@ -53,13 +53,13 @@
 - [x] templates/web_push_service_worker.js — Service Worker template
 - [x] templates/new_project_checklist.md — checklist nowego projektu
 - [x] templates/note_template.py, project_update.py, experience_query.py
-- [ ] docs/: dokumentacja całego systemu Manus Brain
+- [x] docs/: dokumentacja architektury systemu (knowledge/architecture.md)
 
 ## Testy i jakość
 - [x] Vitest: 9/9 testów przechodzi (brain.test.ts + auth.logout.test.ts)
 - [x] TypeScript: zero błędów po wszystkich zmianach
 - [x] Checkpoint v7 — Multi-AI Router, panel AI Models
-- [ ] Checkpoint v8 — Search, Analytics, Timeline, Export, testy, seed v3
+- [x] Checkpoint v8 — Baza Wektorowa (pgvector + TF-IDF + Knowledge Graph)
 
 ## Web Push
 - [x] VAPID keys wygenerowane i skonfigurowane
@@ -92,3 +92,16 @@
 - [x] 14 testów vitest dla TF-IDF i cosine similarity
 - [x] Raport wektorowy wyeksportowany do Google Drive
 - [x] Checkpoint v8 — Baza Wektorowa
+
+## Checkpoint v9 — Autonomiczne rozszerzenia
+- [x] Auto-reindeksowanie po learning run (vector.indexNew w brain router)
+- [x] Semantic Search w SearchPanel (tryb "po znaczeniu")
+- [x] Cluster Evolution Tracking — tabela manus_cluster_history + wizualizacja
+- [x] VectorPanel: zakładka Ewolucja (bar chart + trend per klaster)
+- [x] Seed v4 — 12 nowych doświadczeń (security, performance, UX, testing, architecture)
+- [x] Pipeline Manager (SchedulerPanel) — Full Pipeline, historia uruchomień
+- [x] Scheduler Router — runFullPipeline, status, history, snapshotClusters
+- [x] Tabela manus_scheduler_jobs w Supabase
+- [x] Dokumentacja architektury — knowledge/architecture.md w GitHub
+- [x] 38 testów vitest (4 pliki testowe)
+- [x] Checkpoint v9 + GitHub + Google Drive

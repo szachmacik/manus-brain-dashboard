@@ -5,7 +5,7 @@
  */
 import { useState, useCallback, useRef } from "react";
 import { trpc } from "@/lib/trpc";
-import { Search, X, Filter, Clock, BookOpen, FileText, FolderOpen, Zap, Loader2, AlertCircle } from "lucide-react";
+import { Search, X, Filter, Clock, BookOpen, FileText, FolderOpen, Zap, Loader2, AlertCircle, Sparkles, Network } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,16 +19,25 @@ const SCOPE_CONFIG: Record<SearchScope, { label: string; icon: React.ReactNode; 
   patterns: { label: "Wzorce", icon: <Zap size={12} />, color: "text-amber-400 border-amber-400/30 bg-amber-400/10" },
 };
 
+type SearchMode = "text" | "semantic";
+
 export default function SearchPanel() {
   const [query, setQuery] = useState("");
   const [activeQuery, setActiveQuery] = useState("");
   const [scopes, setScopes] = useState<SearchScope[]>(["experiences", "notes", "projects", "patterns"]);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [searchMode, setSearchMode] = useState<SearchMode>("text");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { data, isLoading, error } = trpc.brain.search.useQuery(
     { query: activeQuery, scope: scopes, limit: 30 },
-    { enabled: activeQuery.length >= 2, staleTime: 60000 }
+    { enabled: activeQuery.length >= 2 && searchMode === "text", staleTime: 60000 }
+  );
+
+  // Semantic search przez bazę wektorową
+  const { data: semanticData, isLoading: semanticLoading } = trpc.vector.semanticSearch.useQuery(
+    { query: activeQuery, limit: 15 },
+    { enabled: activeQuery.length >= 2 && searchMode === "semantic", staleTime: 60000 }
   );
 
   const { data: cacheStats } = trpc.brain.cacheStats.useQuery(undefined, { staleTime: 30000 });
@@ -41,6 +50,9 @@ export default function SearchPanel() {
       return updated;
     });
   }, [query]);
+
+  const isSearching = searchMode === "text" ? isLoading : semanticLoading;
+  const hasResults = searchMode === "text" ? !!data : !!semanticData;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") handleSearch();
@@ -91,16 +103,49 @@ export default function SearchPanel() {
         )}
       </div>
 
+      {/* Search Mode Toggle */}
+      <div className="flex items-center gap-1 p-1 bg-muted/30 rounded-lg border border-border w-fit">
+        <button
+          onClick={() => setSearchMode("text")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+            searchMode === "text"
+              ? "bg-card text-foreground shadow-sm border border-border"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Search size={12} />
+          Tekstowe
+        </button>
+        <button
+          onClick={() => setSearchMode("semantic")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+            searchMode === "semantic"
+              ? "bg-primary/15 text-primary shadow-sm border border-primary/20"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Sparkles size={12} />
+          Semantyczne
+          <span className="text-[9px] px-1 py-0.5 rounded bg-primary/10 text-primary">AI</span>
+        </button>
+      </div>
+
       {/* Search Input */}
       <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        {searchMode === "semantic" ? (
+          <Sparkles size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-primary" />
+        ) : (
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        )}
         <Input
           ref={inputRef}
           value={query}
           onChange={e => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Szukaj w bazie wiedzy... (Enter aby wyszukać)"
-          className="pl-9 pr-20 bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-emerald-400/50 focus:ring-emerald-400/20"
+          placeholder={searchMode === "semantic" ? "Opisz co szukasz... (wyszukiwanie po znaczeniu)" : "Szukaj w bazie wiedzy... (Enter aby wyszukać)"}
+          className={`pl-9 pr-20 bg-white/5 border-white/10 text-white placeholder:text-gray-500 transition-colors ${
+            searchMode === "semantic" ? "focus:border-primary/50 focus:ring-primary/20" : "focus:border-emerald-400/50 focus:ring-emerald-400/20"
+          }`}
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
           {query && (
@@ -108,14 +153,28 @@ export default function SearchPanel() {
               <X size={14} />
             </button>
           )}
-          <Button size="sm" onClick={handleSearch} disabled={query.length < 2} className="h-7 px-3 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-400/30">
-            {isLoading ? <Loader2 size={12} className="animate-spin" /> : "Szukaj"}
+          <Button size="sm" onClick={handleSearch} disabled={query.length < 2}
+            className={`h-7 px-3 border ${
+              searchMode === "semantic"
+                ? "bg-primary/20 text-primary hover:bg-primary/30 border-primary/30"
+                : "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border-emerald-400/30"
+            }`}
+          >
+            {isSearching ? <Loader2 size={12} className="animate-spin" /> : "Szukaj"}
           </Button>
         </div>
       </div>
 
-      {/* Scope Filters */}
-      <div className="flex items-center gap-2 flex-wrap">
+      {/* Semantic mode info */}
+      {searchMode === "semantic" && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 border border-primary/15 text-xs text-muted-foreground">
+          <Network size={13} className="text-primary shrink-0" />
+          <span>Wyszukiwanie semantyczne używa TF-IDF embeddings (1536-dim) do znalezienia doświadczeń podobnych znaczeniowo, nie tylko tekstowo.</span>
+        </div>
+      )}
+
+      {/* Scope Filters — only for text mode */}
+      {searchMode === "text" && <div className="flex items-center gap-2 flex-wrap">
         <Filter size={14} className="text-gray-400" />
         <span className="text-xs text-gray-400">Zakres:</span>
         {(Object.keys(SCOPE_CONFIG) as SearchScope[]).map(scope => (
@@ -130,7 +189,7 @@ export default function SearchPanel() {
             {SCOPE_CONFIG[scope].label}
           </button>
         ))}
-      </div>
+      </div>}
 
       {/* Recent Searches */}
       {!activeQuery && recentSearches.length > 0 && (
@@ -173,10 +232,10 @@ export default function SearchPanel() {
       )}
 
       {/* Loading */}
-      {isLoading && (
+      {isSearching && (
         <div className="flex items-center justify-center py-12 gap-3 text-gray-400">
-          <Loader2 size={20} className="animate-spin text-emerald-400" />
-          <span>Przeszukuję bazę wiedzy...</span>
+          <Loader2 size={20} className={`animate-spin ${searchMode === "semantic" ? "text-primary" : "text-emerald-400"}`} />
+          <span>{searchMode === "semantic" ? "Obliczam podobieństwo semantyczne..." : "Przeszukuję bazę wiedzy..."}</span>
         </div>
       )}
 
@@ -188,8 +247,73 @@ export default function SearchPanel() {
         </div>
       )}
 
-      {/* Results */}
-      {data && !isLoading && (
+      {/* Semantic Results */}
+      {semanticData && searchMode === "semantic" && !semanticLoading && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-gray-400">
+              {semanticData.results.length > 0 ? (
+                <><span className="text-white font-medium">{semanticData.results.length}</span> wyników semantycznych dla "<span className="text-primary">{activeQuery}</span>"</>
+              ) : (
+                <>Brak wyników semantycznych dla "<span className="text-primary">{activeQuery}</span>"</>
+              )}
+            </span>
+            <Badge variant="outline" className="text-xs text-primary border-primary/30 bg-primary/5">
+              <Sparkles size={10} className="mr-1" /> TF-IDF cosine
+            </Badge>
+          </div>
+
+          {semanticData.results.length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              <p>Brak semantycznie podobnych wyników.</p>
+              <p className="text-xs mt-1">Spróbuj bardziej opisowego zapytania lub przełącz na wyszukiwanie tekstowe.</p>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            {semanticData.results.map((result: any, i: number) => (
+              <div
+                key={`semantic-${result.id}-${i}`}
+                className="p-4 rounded-xl bg-primary/3 border border-primary/10 hover:border-primary/25 hover:bg-primary/5 transition-all group"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border text-emerald-400 border-emerald-400/30 bg-emerald-400/10">
+                        <BookOpen size={10} />
+                        Doświadczenie
+                      </span>
+                      <span className="text-xs text-muted-foreground">{result.domain}</span>
+                    </div>
+                    <h3 className="text-sm font-medium text-white group-hover:text-primary transition-colors truncate">
+                      {result.title}
+                    </h3>
+                    {result.summary && (
+                      <p className="text-xs text-gray-400 mt-1 line-clamp-2">{result.summary}</p>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <span className="text-xs font-mono text-primary font-bold">
+                      {Math.round(result.similarity * 100)}%
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">podobieństwo</span>
+                  </div>
+                </div>
+                {/* Similarity bar */}
+                <div className="mt-2 h-1 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary rounded-full transition-all"
+                    style={{ width: `${Math.round(result.similarity * 100)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Text Results */}
+      {data && searchMode === "text" && !isLoading && (
         <div>
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm text-gray-400">

@@ -6,6 +6,7 @@ import { pushRouter } from "./routers/push";
 import { aiRouter } from "./routers/ai";
 import { brainRouter } from "./routers/brain";
 import { vectorRouter } from "./routers/vector";
+import { schedulerRouter } from "./routers/scheduler";
 
 export const appRouter = router({
   system: systemRouter,
@@ -21,6 +22,7 @@ export const appRouter = router({
   ai: aiRouter,
   brain: brainRouter,
   vector: vectorRouter,
+  scheduler: schedulerRouter,
 });
 
 export type AppRouter = typeof appRouter;
