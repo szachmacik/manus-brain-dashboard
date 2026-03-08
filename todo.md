@@ -111,4 +111,14 @@
 - [x] Tygodniowy raport wektorowy — scheduler.weeklyVectorReport + Web Push
 - [x] Eksport grafu do Gephi/Cytoscape — GEXF, GraphML, Cytoscape.js, JSON w ExportPanel
 - [x] 61 testów vitest (5 plików testowych)
-- [ ] Lista uprawnień do autodeploymentu — dokumentacja
+- [x] Lista uprawnień do autodeploymentu — dokumentacja + GitHub + Google Drive
+
+## Checkpoint v11 — Aktualności + Autodeployment DO+Coolify+CF
+- [x] Panel Aktualności (NewsPanel) — 12 news, filtrowanie, AI insights, dodawanie
+- [x] Tabela manus_news w Supabase + news.ts router
+- [x] Dockerfile multi-stage + docker-entrypoint.sh + /api/health endpoint
+- [x] GitHub Actions deploy.yml — test → build → GHCR → Coolify webhook
+- [x] Secure Vault (VaultPanel) — bezpieczny formularz: COOLIFY_TOKEN, GITHUB_PAT, COOLIFY_WEBHOOK_URL
+- [x] vault.ts router — status, setKey, deleteKey, triggerDeploy
+- [x] 61 testów vitest (5 plików testowych)
+- [x] Checkpoint v11 + GitHub + Google Drive

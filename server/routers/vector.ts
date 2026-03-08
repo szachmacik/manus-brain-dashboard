@@ -604,6 +604,7 @@ export const vectorRouter = router({
       };
     }),
 
+  
   // ── COVERAGE — ile doświadczeń ma embeddings ──────────────────────────────────────────────
   coverage: publicProcedure.query(async () => {
     const supabase = getSupabase();
