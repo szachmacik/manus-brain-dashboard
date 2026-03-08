@@ -535,6 +535,140 @@ export const brainRouter = router({
     if (!db) return [];
     return db.select().from(dataExports).orderBy(desc(dataExports.createdAt)).limit(20);
   }),
+
+  // ── SAVE LEARNING RUN + AUTO-REINDEX ─────────────────────────────────────
+  // Zapisuje nowy learning run do Supabase i automatycznie indeksuje
+  // nowe doświadczenia wektorowo (TF-IDF embeddings)
+  saveLearningRun: publicProcedure
+    .input(z.object({
+      status: z.enum(["success", "partial", "failed"]).default("success"),
+      experiencesLearned: z.number().min(0).default(0),
+      patternsDetected: z.number().min(0).default(0),
+      cacheEntriesAdded: z.number().min(0).default(0),
+      creditsUsed: z.number().min(0).default(0),
+      durationMs: z.number().min(0).default(0),
+      summary: z.string().optional(),
+      metadata: z.record(z.string(), z.any()).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const supabase = getSupabase();
+      if (!supabase) return { success: false, error: "No Supabase", runId: null, vectorIndexed: 0 };
+
+      // 1. Zapisz learning run do Supabase
+      const { data: runData, error: runError } = await supabase
+        .from("manus_learning_runs")
+        .insert({
+          status: input.status,
+          experiences_learned: input.experiencesLearned,
+          patterns_detected: input.patternsDetected,
+          cache_entries_added: input.cacheEntriesAdded,
+          credits_used: input.creditsUsed,
+          duration_ms: input.durationMs,
+          summary: input.summary ?? "",
+          metadata: input.metadata ?? {},
+          started_at: new Date(Date.now() - input.durationMs).toISOString(),
+          completed_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
+
+      if (runError) {
+        return { success: false, error: runError.message, runId: null, vectorIndexed: 0 };
+      }
+
+      // 2. Auto-reindeksowanie wektorowe: znajdź doświadczenia bez embeddings
+      let vectorIndexed = 0;
+      try {
+        // Pobierz doświadczenia bez embeddings
+        const { data: allExp } = await supabase
+          .from("manus_experiences")
+          .select("id, title, content, domain, tags")
+          .eq("status", "active");
+
+        const { data: existingEmb } = await supabase
+          .from("manus_embeddings")
+          .select("experience_id");
+
+        const indexedIds = new Set((existingEmb ?? []).map((e: any) => e.experience_id));
+        const toIndex = (allExp ?? []).filter((e: any) => !indexedIds.has(e.id));
+
+        if (toIndex.length > 0) {
+          // Generuj TF-IDF embeddings dla nowych doświadczeń
+          const vocab = new Map<string, number>();
+          const allTexts = (allExp ?? []).map((e: any) =>
+            `${e.title} ${e.content ?? ""} ${(e.tags ?? []).join(" ")} ${e.domain ?? ""}`
+              .toLowerCase().replace(/[^a-z0-9\s]/g, " ")
+          );
+
+          // Buduj słownik
+          allTexts.forEach(text => {
+            text.split(/\s+/).filter(Boolean).forEach(word => {
+              if (!vocab.has(word)) vocab.set(word, vocab.size);
+            });
+          });
+
+          // Ogranicz do 1536 wymiarów
+          const vocabSize = Math.min(vocab.size, 1536);
+          const vocabArr = Array.from(vocab.keys()).slice(0, vocabSize);
+
+          // IDF
+          const idf = new Array(vocabSize).fill(0);
+          const N = allTexts.length;
+          vocabArr.forEach((word, i) => {
+            const df = allTexts.filter(t => t.includes(word)).length;
+            idf[i] = Math.log((N + 1) / (df + 1)) + 1;
+          });
+
+          // Generuj embeddings dla nowych
+          for (const exp of toIndex) {
+            const text = `${exp.title} ${exp.content ?? ""} ${(exp.tags ?? []).join(" ")} ${exp.domain ?? ""}`
+              .toLowerCase().replace(/[^a-z0-9\s]/g, " ");
+            const words = text.split(/\s+/).filter(Boolean);
+            const tf = new Array(vocabSize).fill(0);
+            words.forEach(word => {
+              const idx = vocabArr.indexOf(word);
+              if (idx >= 0) tf[idx]++;
+            });
+            const tfidf = tf.map((v, i) => v * idf[i]);
+            const norm = Math.sqrt(tfidf.reduce((s, v) => s + v * v, 0)) || 1;
+            const embedding = tfidf.map(v => v / norm);
+
+            await supabase.from("manus_embeddings").upsert({
+              experience_id: exp.id,
+              embedding: JSON.stringify(embedding),
+              model: "tfidf-1536",
+              dimensions: vocabSize,
+              indexed_at: new Date().toISOString(),
+            }, { onConflict: "experience_id" });
+
+            vectorIndexed++;
+          }
+        }
+      } catch (vectorErr) {
+        // Non-critical — nie blokuj zapisu learning run
+        console.error("[Auto-reindex] Error:", vectorErr);
+      }
+
+      // 3. Zaloguj aktywność
+      await logActivity({
+        type: "learning_run",
+        title: `Learning run #${runData?.id ?? "?"} — ${input.status}`,
+        description: input.summary ?? `${input.experiencesLearned} doświadczeń, ${vectorIndexed} nowych embeddings`,
+        entityType: "learning_run",
+        entityId: String(runData?.id ?? ""),
+        metadata: { ...input.metadata, vectorIndexed },
+        importance: input.status === "success" ? 7 : 4,
+      });
+
+      return {
+        success: true,
+        runId: runData?.id ?? null,
+        vectorIndexed,
+        message: vectorIndexed > 0
+          ? `Run zapisany. Auto-reindeksowano ${vectorIndexed} nowych doświadczeń.`
+          : "Run zapisany. Wszystkie doświadczenia już zindeksowane.",
+      };
+    }),
 });
 
 // ─── TYPES ───────────────────────────────────────────────────────────────────

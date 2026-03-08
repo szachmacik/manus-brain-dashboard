@@ -79,6 +79,9 @@ export default function SchedulerPanel() {
       historyQuery.refetch();
     },
   });
+  const weeklyReportMutation = trpc.scheduler.weeklyVectorReport.useMutation({
+    onSuccess: () => historyQuery.refetch(),
+  });
 
   const lastRun = historyQuery.data?.runs?.[0];
 
@@ -117,18 +120,33 @@ export default function SchedulerPanel() {
             Zarządzaj indeksowaniem wektorowym i zaplanowanymi zadaniami
           </p>
         </div>
-        <Button
-          onClick={() => runMutation.mutate()}
-          disabled={runMutation.isPending}
-          className="bg-[#10b981] hover:bg-[#059669] text-black font-semibold gap-2"
-        >
-          {runMutation.isPending ? (
-            <RefreshCw className="w-4 h-4 animate-spin" />
-          ) : (
-            <Play className="w-4 h-4" />
-          )}
-          {runMutation.isPending ? "Uruchamiam..." : "Uruchom Full Pipeline"}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => runMutation.mutate()}
+            disabled={runMutation.isPending}
+            className="bg-[#10b981] hover:bg-[#059669] text-black font-semibold gap-2"
+          >
+            {runMutation.isPending ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <Play className="w-4 h-4" />
+            )}
+            {runMutation.isPending ? "Uruchamiam..." : "Full Pipeline"}
+          </Button>
+          <Button
+            onClick={() => weeklyReportMutation.mutate()}
+            disabled={weeklyReportMutation.isPending}
+            variant="outline"
+            className="border-[#8b5cf6]/40 text-[#8b5cf6] hover:bg-[#8b5cf6]/10 gap-2"
+          >
+            {weeklyReportMutation.isPending ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <Calendar className="w-4 h-4" />
+            )}
+            Raport tygodniowy
+          </Button>
+        </div>
       </div>
 
       {/* Last run result */}

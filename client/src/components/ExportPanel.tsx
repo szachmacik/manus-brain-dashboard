@@ -4,7 +4,7 @@
  */
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { Download, FileJson, FileText, File, Clock, CheckCircle, Loader2, AlertCircle, Database } from "lucide-react";
+import { Download, FileJson, FileText, File, Clock, CheckCircle, Loader2, AlertCircle, Database, Network, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -34,6 +34,70 @@ function formatBytes(bytes: number): string {
 
 function formatDate(date: Date): string {
   return new Date(date).toLocaleString("pl-PL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+// ── GraphExportButton — przycisk eksportu grafu wiedzy ──────────────────────
+function GraphExportButton({
+  format, label, tool, color, border
+}: {
+  format: "gexf" | "graphml" | "cytoscape" | "json";
+  label: string;
+  tool: string;
+  color: string;
+  border: string;
+}) {
+  const graphQuery = trpc.vector.exportGraph.useQuery(
+    { format },
+    { enabled: false, staleTime: 60000 }
+  );
+
+  const handleDownload = async () => {
+    const result = await graphQuery.refetch();
+    if (!result.data?.content) {
+      toast.error("Błąd pobierania grafu");
+      return;
+    }
+    const mimeMap: Record<string, string> = {
+      gexf: "application/xml",
+      graphml: "application/xml",
+      cytoscape: "application/json",
+      json: "application/json",
+    };
+    const extMap: Record<string, string> = {
+      gexf: "gexf",
+      graphml: "graphml",
+      cytoscape: "json",
+      json: "json",
+    };
+    const blob = new Blob([result.data.content], { type: mimeMap[format] });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `manus-knowledge-graph-${new Date().toISOString().split("T")[0]}.${extMap[format]}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success(`Pobrano graf: ${result.data.nodeCount} węzłów, ${result.data.edgeCount} krawędzi`);
+  };
+
+  return (
+    <button
+      onClick={handleDownload}
+      disabled={graphQuery.isFetching}
+      className={`p-3 rounded-xl border ${border} bg-white/3 hover:bg-white/5 text-left transition-all disabled:opacity-50`}
+    >
+      <div className="flex items-center gap-2 mb-1">
+        {graphQuery.isFetching ? (
+          <Loader2 size={12} className={`${color} animate-spin`} />
+        ) : (
+          <Share2 size={12} className={color} />
+        )}
+        <span className={`text-xs font-semibold ${color}`}>{label}</span>
+      </div>
+      <div className="text-xs text-gray-500">{tool}</div>
+    </button>
+  );
 }
 
 export default function ExportPanel() {
@@ -155,6 +219,25 @@ export default function ExportPanel() {
             {exportMutation.error.message}
           </div>
         )}
+      </div>
+
+      {/* Knowledge Graph Export */}
+      <div className="p-4 rounded-xl bg-white/3 border border-[#8b5cf6]/25">
+        <div className="flex items-center gap-2 mb-2">
+          <Network size={14} className="text-[#8b5cf6]" />
+          <h3 className="text-xs font-medium text-[#8b5cf6] uppercase tracking-wider">Eksport Grafu Wiedzy</h3>
+        </div>
+        <p className="text-xs text-gray-400 mb-3">Eksportuj Knowledge Graph do narzędzi analitycznych: Gephi, Cytoscape, yEd lub własne skrypty Python/R.</p>
+        <div className="grid grid-cols-2 gap-2">
+          {([
+            { fmt: "gexf" as const, label: "GEXF", tool: "Gephi", color: "text-orange-400", border: "border-orange-400/20" },
+            { fmt: "graphml" as const, label: "GraphML", tool: "Cytoscape / yEd", color: "text-blue-400", border: "border-blue-400/20" },
+            { fmt: "cytoscape" as const, label: "Cytoscape.js", tool: "Web / Python", color: "text-green-400", border: "border-green-400/20" },
+            { fmt: "json" as const, label: "JSON Graph", tool: "Dowolne narzędzie", color: "text-amber-400", border: "border-amber-400/20" },
+          ]).map(({ fmt, label, tool, color, border }) => (
+            <GraphExportButton key={fmt} format={fmt} label={label} tool={tool} color={color} border={border} />
+          ))}
+        </div>
       </div>
 
       {/* Export History */}

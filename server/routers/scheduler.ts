@@ -197,19 +197,103 @@ export const schedulerRouter = router({
     };
   }),
 
-  // Statystyki ostatnich uruchomień
+    // Statystyki ostatnich uruchomień
   history: publicProcedure
     .input(z.object({ limit: z.number().min(1).max(50).default(10) }))
     .query(async ({ input }) => {
       const supabase = getSupabase();
       if (!supabase) return { runs: [] };
-
       const { data } = await supabase
         .from("manus_scheduler_jobs")
         .select("*")
         .order("last_run_at", { ascending: false })
         .limit(input.limit);
-
       return { runs: data ?? [] };
     }),
+
+  // ── WEEKLY VECTOR REPORT — tygodniowy raport wektorowy ────────────────────
+  // Generuje raport statystyk wektorowych i wysyła Web Push do właściciela
+  weeklyVectorReport: publicProcedure.mutation(async () => {
+    const supabase = getSupabase();
+    if (!supabase) return { success: false, error: "No Supabase" };
+    const startTime = Date.now();
+
+    // 1. Zbierz statystyki
+    const [embRes, linkRes, clusterRes, expRes, histRes] = await Promise.all([
+      supabase.from("manus_embeddings").select("id", { count: "exact", head: true }),
+      supabase.from("manus_semantic_links").select("id", { count: "exact", head: true }),
+      supabase.from("manus_vector_clusters").select("id", { count: "exact", head: true }),
+      supabase.from("manus_experiences").select("id", { count: "exact", head: true }).eq("status", "active"),
+      supabase.from("manus_cluster_history")
+        .select("snapshot_date, total_experiences")
+        .order("snapshot_date", { ascending: false })
+        .limit(7),
+    ]);
+
+    const totalExp = expRes.count ?? 0;
+    const totalEmb = embRes.count ?? 0;
+    const coverage = totalExp > 0 ? Math.round((totalEmb / totalExp) * 100) : 0;
+    const totalLinks = linkRes.count ?? 0;
+    const totalClusters = clusterRes.count ?? 0;
+
+    // 2. Trend tygodniowy (porównaj z 7 dni temu)
+    const histData = histRes.data ?? [];
+    const newestSnap = histData[0]?.total_experiences ?? totalExp;
+    const oldestSnap = histData[histData.length - 1]?.total_experiences ?? totalExp;
+    const weekGrowth = newestSnap - oldestSnap;
+
+    // 3. Zbuduj treść raportu
+    const reportDate = new Date().toLocaleDateString("pl-PL", { day: "2-digit", month: "long", year: "numeric" });
+    const reportContent = [
+      `# Manus Brain — Tygodniowy Raport Wektorowy`,
+      `**Data:** ${reportDate}`,
+      ``,
+      `## Statystyki bazy wektorowej`,
+      `| Metryka | Wartość |`,
+      `|---------|---------|`,
+      `| Doświadczenia aktywne | ${totalExp} |`,
+      `| Embeddings (TF-IDF 1536-dim) | ${totalEmb} |`,
+      `| Pokrycie wektorowe | ${coverage}% |`,
+      `| Semantic links | ${totalLinks} |`,
+      `| Klastry semantyczne | ${totalClusters} |`,
+      `| Wzrost tygodniowy | +${weekGrowth} doświadczeń |`,
+      ``,
+      `## Historia 7 dni`,
+      ...histData.map((h: any) => `- ${h.snapshot_date}: ${h.total_experiences} doświadczeń`),
+      ``,
+      `---`,
+      `*Raport wygenerowany automatycznie przez Manus Brain Pipeline Manager*`,
+    ].join("\n");
+
+    // 4. Wyślij Web Push do właściciela
+    let pushSent = false;
+    try {
+      const { notifyOwner } = await import("../_core/notification");
+      await notifyOwner({
+        title: `📊 Raport Wektorowy — ${reportDate}`,
+        content: `Pokrycie: ${coverage}% | Embeddings: ${totalEmb} | Klastry: ${totalClusters} | Wzrost: +${weekGrowth}`,
+      });
+      pushSent = true;
+    } catch (e) {
+      // Non-critical
+    }
+
+    // 5. Zapisz do scheduler_jobs
+    await supabase.from("manus_scheduler_jobs").upsert({
+      job_name: "weekly_vector_report",
+      last_run_at: new Date().toISOString(),
+      last_duration_ms: Date.now() - startTime,
+      last_result: JSON.stringify({ coverage, totalEmb, totalLinks, totalClusters, weekGrowth, pushSent }),
+      status: "success",
+    }, { onConflict: "job_name" });
+
+    return {
+      success: true,
+      reportDate,
+      stats: { totalExp, totalEmb, coverage, totalLinks, totalClusters, weekGrowth },
+      pushSent,
+      reportContent,
+      duration_ms: Date.now() - startTime,
+    };
+  }),
 });

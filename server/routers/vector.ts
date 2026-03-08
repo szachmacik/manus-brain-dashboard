@@ -441,8 +441,170 @@ export const vectorRouter = router({
     const { error } = await supabase.from("manus_cluster_history").insert(rows);
     return { saved: error ? 0 : rows.length, error: error?.message };
   }),
+  // ── EXPORT GRAPH — eksport grafu wiedzy do Gephi/Cytoscape ─────────────────────────────
+  exportGraph: publicProcedure
+    .input(z.object({
+      format: z.enum(["gexf", "graphml", "json", "cytoscape"]).default("json"),
+    }))
+    .query(async ({ input }) => {
+      const supabase = getSupabase();
+      if (!supabase) return { format: input.format, content: "", nodeCount: 0, edgeCount: 0 };
 
-  // ── COVERAGE — ile doświadczeń ma embeddings ──────────────────────────────
+      // Pobierz węzły (doświadczenia) i krawędzie (semantic links)
+      const [expData, linkData, clusterData] = await Promise.all([
+        supabase.from("manus_experiences").select("id, title, domain, status, created_at").eq("status", "active"),
+        supabase.from("manus_semantic_links").select("source_id, target_id, similarity, link_type"),
+        supabase.from("manus_vector_clusters").select("id, name, member_ids, member_count"),
+      ]);
+
+      const nodes = expData.data ?? [];
+      const edges = linkData.data ?? [];
+      const clusters = clusterData.data ?? [];
+
+      // Mapuj doświadczenia do klastrów
+      const nodeCluster: Record<string, string> = {};
+      for (const cluster of clusters) {
+        const members: string[] = Array.isArray(cluster.member_ids)
+          ? cluster.member_ids
+          : (typeof cluster.member_ids === "string" ? JSON.parse(cluster.member_ids) : []);
+        for (const memberId of members) {
+          nodeCluster[String(memberId)] = cluster.name ?? "unknown";
+        }
+      }
+
+      let content = "";
+
+      if (input.format === "gexf") {
+        // GEXF format (Gephi)
+        const nodeXml = nodes.map(n =>
+          `    <node id="${n.id}" label="${n.title?.replace(/"/g, "&quot;") ?? ""}">\n` +
+          `      <attvalues>\n` +
+          `        <attvalue for="domain" value="${n.domain ?? "unknown"}" />\n` +
+          `        <attvalue for="cluster" value="${nodeCluster[String(n.id)] ?? "none"}" />\n` +
+          `        <attvalue for="created_at" value="${n.created_at ?? ""}" />\n` +
+          `      </attvalues>\n` +
+          `    </node>`
+        ).join("\n");
+        const edgeXml = edges.map((e, i) =>
+          `    <edge id="${i}" source="${e.source_id}" target="${e.target_id}" weight="${e.similarity?.toFixed(4) ?? "0"}" type="${e.link_type ?? "undirected"}" />`
+        ).join("\n");
+        content = [
+          `<?xml version="1.0" encoding="UTF-8"?>`,
+          `<gexf xmlns="http://gexf.net/1.3" version="1.3">`,
+          `  <meta lastmodifieddate="${new Date().toISOString().split("T")[0]}">`,
+          `    <creator>Manus Brain Dashboard</creator>`,
+          `    <description>Semantic Knowledge Graph</description>`,
+          `  </meta>`,
+          `  <graph defaultedgetype="undirected">`,
+          `    <attributes class="node">`,
+          `      <attribute id="domain" title="Domain" type="string" />`,
+          `      <attribute id="cluster" title="Cluster" type="string" />`,
+          `      <attribute id="created_at" title="Created At" type="string" />`,
+          `    </attributes>`,
+          `    <nodes>`,
+          nodeXml,
+          `    </nodes>`,
+          `    <edges>`,
+          edgeXml,
+          `    </edges>`,
+          `  </graph>`,
+          `</gexf>`,
+        ].join("\n");
+      } else if (input.format === "graphml") {
+        // GraphML format (Cytoscape, yEd)
+        const keyDefs = [
+          `  <key id="d0" for="node" attr.name="domain" attr.type="string" />`,
+          `  <key id="d1" for="node" attr.name="cluster" attr.type="string" />`,
+          `  <key id="d2" for="edge" attr.name="weight" attr.type="double" />`,
+          `  <key id="d3" for="edge" attr.name="link_type" attr.type="string" />`,
+        ].join("\n");
+        const nodeXml = nodes.map(n =>
+          `  <node id="${n.id}">\n` +
+          `    <data key="d0">${n.domain ?? "unknown"}</data>\n` +
+          `    <data key="d1">${nodeCluster[String(n.id)] ?? "none"}</data>\n` +
+          `  </node>`
+        ).join("\n");
+        const edgeXml = edges.map((e, i) =>
+          `  <edge id="e${i}" source="${e.source_id}" target="${e.target_id}">\n` +
+          `    <data key="d2">${e.similarity?.toFixed(4) ?? "0"}</data>\n` +
+          `    <data key="d3">${e.link_type ?? "undirected"}</data>\n` +
+          `  </edge>`
+        ).join("\n");
+        content = [
+          `<?xml version="1.0" encoding="UTF-8"?>`,
+          `<graphml xmlns="http://graphml.graphdrawing.org/graphml">`,
+          keyDefs,
+          `  <graph id="G" edgedefault="undirected">`,
+          nodeXml,
+          edgeXml,
+          `  </graph>`,
+          `</graphml>`,
+        ].join("\n");
+      } else if (input.format === "cytoscape") {
+        // Cytoscape.js JSON format
+        const cytoscapeData = {
+          elements: {
+            nodes: nodes.map(n => ({
+              data: {
+                id: String(n.id),
+                label: n.title ?? "",
+                domain: n.domain ?? "unknown",
+                cluster: nodeCluster[String(n.id)] ?? "none",
+              },
+            })),
+            edges: edges.map((e, i) => ({
+              data: {
+                id: `e${i}`,
+                source: String(e.source_id),
+                target: String(e.target_id),
+                weight: e.similarity ?? 0,
+                type: e.link_type ?? "semantic",
+              },
+            })),
+          },
+        };
+        content = JSON.stringify(cytoscapeData, null, 2);
+      } else {
+        // JSON format (default)
+        content = JSON.stringify({
+          metadata: {
+            generated_at: new Date().toISOString(),
+            generator: "Manus Brain Dashboard",
+            node_count: nodes.length,
+            edge_count: edges.length,
+            cluster_count: clusters.length,
+          },
+          nodes: nodes.map(n => ({
+            id: n.id,
+            label: n.title,
+            domain: n.domain,
+            cluster: nodeCluster[String(n.id)] ?? "none",
+            created_at: n.created_at,
+          })),
+          edges: edges.map(e => ({
+            source: e.source_id,
+            target: e.target_id,
+            weight: e.similarity,
+            type: e.link_type,
+          })),
+          clusters: clusters.map(c => ({
+            id: c.id,
+            name: c.name,
+            member_count: c.member_count,
+          })),
+        }, null, 2);
+      }
+
+      return {
+        format: input.format,
+        content,
+        nodeCount: nodes.length,
+        edgeCount: edges.length,
+        clusterCount: clusters.length,
+      };
+    }),
+
+  // ── COVERAGE — ile doświadczeń ma embeddings ──────────────────────────────────────────────
   coverage: publicProcedure.query(async () => {
     const supabase = getSupabase();
     if (!supabase) return { total: 0, indexed: 0, percentage: 0, byDomain: [] };

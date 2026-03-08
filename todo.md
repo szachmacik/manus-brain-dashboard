@@ -105,3 +105,10 @@
 - [x] Dokumentacja architektury — knowledge/architecture.md w GitHub
 - [x] 38 testów vitest (4 pliki testowe)
 - [x] Checkpoint v9 + GitHub + Google Drive
+
+## Checkpoint v10 — Sugestie v9 + Autodeployment
+- [x] Auto-reindeksowanie webhook — brain.saveLearningRun z TF-IDF pipeline
+- [x] Tygodniowy raport wektorowy — scheduler.weeklyVectorReport + Web Push
+- [x] Eksport grafu do Gephi/Cytoscape — GEXF, GraphML, Cytoscape.js, JSON w ExportPanel
+- [x] 61 testów vitest (5 plików testowych)
+- [ ] Lista uprawnień do autodeploymentu — dokumentacja
