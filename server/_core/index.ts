@@ -7,6 +7,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { registerSupabaseAuthRoutes } from "./supabaseAuth";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -33,12 +34,33 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+  // ─── Security Headers ─────────────────────────────────────────────────────
+  app.use((_req, res, next) => {
+    res.removeHeader("X-Powered-By");
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    res.setHeader("Content-Security-Policy",
+      "default-src 'self'; " +
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+      "font-src 'self' https://fonts.gstatic.com; " +
+      "img-src 'self' data: blob: https:; " +
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.openai.com; " +
+      "frame-ancestors 'none';"
+    );
+    next();
+  });
+  // ──────────────────────────────────────────────────────────────────────────
   // Health check endpoint — wymagany przez Coolify
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString(), version: process.env.npm_package_version ?? "1.0.0" });
   });
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+  registerSupabaseAuthRoutes(app);
   // tRPC API
   app.use(
     "/api/trpc",

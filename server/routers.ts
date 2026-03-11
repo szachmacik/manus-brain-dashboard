@@ -9,6 +9,8 @@ import { vectorRouter } from "./routers/vector";
 import { schedulerRouter } from "./routers/scheduler";
 import { newsRouter } from "./routers/news";
 import { vaultRouter } from "./routers/vault";
+import { verifySupabaseToken, isEmailAllowed, isEmailAdmin } from "./_core/supabaseAuth";
+import { SignJWT } from "jose";
 
 export const appRouter = router({
   system: systemRouter,
@@ -19,7 +21,34 @@ export const appRouter = router({
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
-  }),
+  
+  exchangeSupabaseToken: publicProcedure
+    .input(z.object({ accessToken: z.string(), refreshToken: z.string().optional() }))
+    .mutation(async ({ input, ctx }) => {
+      const payload = await verifySupabaseToken(input.accessToken);
+      if (!payload) throw new TRPCError({ code: "UNAUTHORIZED", message: "Nieprawidłowy token Supabase" });
+      const email = payload.email ?? "";
+      if (!isEmailAllowed(email)) throw new TRPCError({ code: "FORBIDDEN", message: "Brak dostępu — email nie jest na liście dozwolonych" });
+      const isAdmin = isEmailAdmin(email);
+      const openId = `supabase:${payload.sub}`;
+      await db.upsertUser({
+        openId,
+        name: payload.user_metadata?.full_name ?? payload.user_metadata?.name ?? email.split("@")[0] ?? null,
+        email,
+        loginMethod: "supabase_otp",
+        lastSignedIn: new Date(),
+        ...(isAdmin ? { role: "admin" } : {}),
+      });
+      const secret = new TextEncoder().encode(process.env.SESSION_SECRET ?? "ofshore-secret-2026");
+      const sessionToken = await new SignJWT({ openId, email, role: isAdmin ? "admin" : "user" })
+        .setProtectedHeader({ alg: "HS256" })
+        .setIssuedAt()
+        .setExpirationTime("365d")
+        .sign(secret);
+      ctx.res.cookie(COOKIE_NAME, sessionToken, getSessionCookieOptions());
+      return { success: true, role: isAdmin ? "admin" : "user" };
+    }),
+}),
   push: pushRouter,
   ai: aiRouter,
   brain: brainRouter,
