@@ -5,8 +5,9 @@ WORKDIR /app
 # Install pnpm
 RUN npm install -g pnpm@9
 
-# Copy package files
+# Copy package files AND patches (required by pnpm patched dependencies)
 COPY package.json pnpm-lock.yaml ./
+COPY patches ./patches
 
 # Install all dependencies (including devDeps for build)
 RUN pnpm install --frozen-lockfile
@@ -24,8 +25,9 @@ WORKDIR /app
 # Install pnpm
 RUN npm install -g pnpm@9
 
-# Copy package files
+# Copy package files AND patches (required by pnpm patched dependencies)
 COPY package.json pnpm-lock.yaml ./
+COPY patches ./patches
 
 # Install production dependencies only
 RUN pnpm install --frozen-lockfile --prod
@@ -43,3 +45,4 @@ EXPOSE 3000
 
 # Start production server
 CMD ["node", "dist/index.js"]
+
