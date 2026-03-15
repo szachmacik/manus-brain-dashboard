@@ -11,6 +11,7 @@ import { newsRouter } from "./routers/news";
 import { vaultRouter } from "./routers/vault";
 import { verifySupabaseToken, isEmailAllowed, isEmailAdmin } from "./_core/supabaseAuth";
 import { SignJWT } from "jose";
+import { z } from "zod";
 
 export const appRouter = router({
   system: systemRouter,
