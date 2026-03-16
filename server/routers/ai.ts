@@ -307,6 +307,8 @@ export async function routeToAI(
 // ─── tRPC Router ──────────────────────────────────────────────────────────────
 
 export const aiRouter = router({
+  ping: publicProcedure.query(() => ({ ok: true, service: "ai" })),
+
   // Lista dostępnych modeli
   listModels: publicProcedure.query(() => {
     return AI_MODELS.map(m => ({
